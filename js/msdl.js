@@ -273,8 +273,3 @@ mxhr.onload = function () {
 };
 mxhr.open("GET", apiUrl + "use_shared_session", true);
 mxhr.send();
-
-if (window.location.origin == "https://ave9858.github.io") {
-    alert("Please use https://massgrave.dev/msdl/")
-    window.location = "https://massgrave.dev" + window.location.pathname + window.location.hash
-}
