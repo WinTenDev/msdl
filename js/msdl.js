@@ -2,7 +2,7 @@ const langsUrl = "https://www.microsoft.com/en-us/api/controls/contentinclude/ht
 const downUrl = "https://www.microsoft.com/en-us/api/controls/contentinclude/html?pageId=cfa9e580-a81e-4a4b-a846-7b21bf4e2e5b&host=www.microsoft.com&segments=software-download%2Cwindows11&query=&action=GetProductDownloadLinksBySku&sdVersion=2";
 const sessionUrl = "https://vlscppe.microsoft.com/fp/tags?org_id=y6jn8c31&session_id="
 
-const apiUrl = "https://massgrave.dev/api/msdl/"
+const apiUrl = "https://api.gravesoft.dev/msdl/"
 
 const sessionId = document.getElementById('msdl-session-id');
 const msContent = document.getElementById('msdl-ms-content');

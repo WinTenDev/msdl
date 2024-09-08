@@ -4,7 +4,7 @@ Microsoft Software Download Listing lets you browse and download products from M
 
 Products list
 -------------
-The list of products available on the page is available in the `data/products.json` file. This file can be generated and updated with the [msdls](https://github.com/ave9858/msdls) script.
+The list of products available on the page is available in the `data/products.json` file. This file should be updated when new versions of Windows are released at https://www.microsoft.com/software-download.
 
 License
 -------
