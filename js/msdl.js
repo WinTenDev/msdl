@@ -1,5 +1,5 @@
-const langsUrl = "https://www.microsoft.com/en-us/api/controls/contentinclude/html?pageId=cd06bda8-ff9c-4a6e-912a-b92a21f42526&host=www.microsoft.com&segments=software-download%2cwindows11&query=&action=getskuinformationbyproductedition&sdVersion=2";
-const downUrl = "https://www.microsoft.com/en-us/api/controls/contentinclude/html?pageId=cfa9e580-a81e-4a4b-a846-7b21bf4e2e5b&host=www.microsoft.com&segments=software-download%2Cwindows11&query=&action=GetProductDownloadLinksBySku&sdVersion=2";
+const msApiUrl = "https://www.microsoft.com/software-download-connector/api/"
+const parms = "?profile=606624d44113&Locale=en-US&sessionID="
 const sessionUrl = "https://vlscppe.microsoft.com/fp/tags?org_id=y6jn8c31&session_id="
 
 const apiUrl = "https://api.gravesoft.dev/msdl/"
@@ -37,16 +37,45 @@ function updateVars() {
     return JSON.parse(id)['id'];
 }
 
-function updateContent(content, response) {
-    content.innerHTML = response;
-    let errorMessage = document.getElementById('errorModalMessage');
+function langJsonStrToHTML(jsonStr) {
+    let json = JSON.parse(jsonStr);
+    let container = document.createElement('div');
 
-    if (errorMessage) {
-        processingError.style.display = "block";
-        return false;
-    }
+    let header = document.createElement('h2');
+    header.textContent = "Select the product language";
+    container.appendChild(header);
 
-    return true;
+    let info = document.createElement('p');
+    info.innerHTML = "You'll need to choose the same language when you install Windows. To see what language you're currently using, go to <strong>Time and language</strong> in PC settings or <strong>Region</strong> in Control Panel.";
+    container.appendChild(info);
+
+    let select = document.createElement('select');
+    select.id = "product-languages";
+
+    let defaultOption = document.createElement('option');
+    defaultOption.value = "";
+    defaultOption.selected = "selected";
+    defaultOption.textContent = "Choose one";
+    select.appendChild(defaultOption);
+
+    json.Skus.forEach(sku => {
+        let option = document.createElement('option');
+        option.value = JSON.stringify({ id: sku.Id });
+        option.textContent = sku.LocalizedLanguage;
+        select.appendChild(option);
+    });
+
+    container.appendChild(select);
+
+    let button = document.createElement('button');
+    button.id = "submit-sku";
+    button.textContent = "Submit";
+    button.disabled = true;
+    button.setAttribute("onClick", "getDownload();");
+
+    container.appendChild(button);
+
+    return container.innerHTML;
 }
 
 function onLanguageXhrChange() {
@@ -59,8 +88,9 @@ function onLanguageXhrChange() {
     pleaseWait.style.display = "none";
     msContent.style.display = "block";
 
-    if (!updateContent(msContent, this.responseText))
-        return;
+    let langHtml = langJsonStrToHTML(this.responseText);
+
+    msContent.innerHTML = langHtml
 
     let submitSku = document.getElementById('submit-sku');
     submitSku.setAttribute("onClick", "getDownload();");
@@ -72,29 +102,48 @@ function onLanguageXhrChange() {
 }
 
 function onDownloadsXhrChange() {
-    if (!(this.status == 200))
-        return;
+    if (!(this.status == 200)) return;
 
-    if (pleaseWait.style.display != "block")
-        return;
+    let response = JSON.parse(this.responseText)
 
-    msContent.style.display = "block";
+    let wasSuccessful = true;
+    if (response.Errors || response.ValidationContainer.Errors) {
+        processingError.style.display = "block";
+        wasSuccessful = false;
+    }
 
-    let wasSuccessful = updateContent(msContent, this.responseText);
+    if (pleaseWait.style.display != "block") return;
 
     if (wasSuccessful) {
         pleaseWait.style.display = "none";
-        if (!sharedSession) {
-            fetch(sessionUrl + sharedSessionGUID);
-            fetch(sessionUrl + "de40cb69-50a5-415e-a0e8-3cf1eed1b7cd");
-            fetch(apiUrl + 'add_session?session_id=' + sessionId.value)
-        }
-    }
-    else if (!sharedSession && shouldUseSharedSession) {
+    } else if (!sharedSession && shouldUseSharedSession) {
         useSharedSession();
-    }
-    else {
+        return;
+    } else {
         getFromServer();
+        return;
+    }
+
+    msContent.innerHTML = "";
+    msContent.style.display = "block";
+
+    if (response.ProductDownloadOptions && response.ProductDownloadOptions.length > 0) {
+        response.ProductDownloadOptions.forEach(option => {
+            let optionContainer = document.createElement('div');
+
+            let header = document.createElement('h1');
+            header.textContent = `Windows 11 ${option.LocalizedLanguage}`
+
+            let downloadButton = document.createElement('a');
+            downloadButton.href = option.Uri;
+            downloadButton.textContent = `Download ${option.LocalizedProductDisplayName}`;
+            downloadButton.target = "_blank";
+            optionContainer.appendChild(downloadButton);
+
+            msContent.appendChild(optionContainer);
+        });
+    } else {
+        msContent.innerHTML = "<p>No download options available.</p>";
     }
 }
 
@@ -108,21 +157,48 @@ function getFromServer() {
     xhr.send();
 }
 
+function getFileNameFromLink(link) {
+    let raw_link = link.split('?')[0];
+    return raw_link.split('/').pop();
+}
+
 function displayResponseFromServer() {
     pleaseWait.style.display = "none";
 
-    if (!(this.status == 200)) {
+    const response = JSON.parse(this.responseText);
+
+    if (this.status !== 200) {
         processingError.style.display = "block";
-        alert(JSON.parse(this.responseText)["Error"])
+        alert(response["Error"])
         return;
     }
-    msContent.innerHTML = this.responseText
+
+    msContent.innerHTML = "";
+    msContent.style.display = "block";
+
+    if (response.ProductDownloadOptions && response.ProductDownloadOptions.length > 0) {
+        let header = document.createElement('h2');
+        header.textContent = `${response.ProductDownloadOptions[0].ProductDisplayName} ${response.ProductDownloadOptions[0].LocalizedLanguage}`
+        msContent.appendChild(header);
+            
+        response.ProductDownloadOptions.forEach(option => {
+            let downloadButton = document.createElement('a');
+            downloadButton.href = option.Uri;
+            downloadButton.textContent = getFileNameFromLink(option.Uri);
+            downloadButton.target = "_blank";
+    
+            let br = document.createElement('br');
+    
+            msContent.appendChild(downloadButton);
+            msContent.appendChild(br);
+        });
+    } else {
+        msContent.innerHTML = "<p>No download options available.</p>";
+    }
 }
 
 function getLanguages(productId) {
-    let url = langsUrl + "&productEditionId=" + productId +
-        "&sessionId=" + (sharedSession ? sharedSessionGUID : sessionId.value);
-
+    let url = `${msApiUrl}getskuinformationbyproductedition${parms}${sessionId.value}&ProductEditionId=${productId}`;
     let xhr = new XMLHttpRequest();
     xhr.onload = onLanguageXhrChange;
     xhr.open("GET", url, true);
@@ -135,7 +211,7 @@ function getDownload() {
 
     skuId = skuId ? skuId : updateVars();
 
-    let url = downUrl + "&skuId=" + skuId + "&sessionId=" + (sharedSession ? sharedSessionGUID : sessionId.value);
+    let url = `${msApiUrl}GetProductDownloadLinksBySku${parms}${sessionId.value}&SKU=${skuId}`;
 
     let xhr = new XMLHttpRequest();
     xhr.onload = onDownloadsXhrChange;
@@ -162,13 +238,12 @@ function useSharedSession() {
 function retryDownload() {
     pleaseWait.style.display = "block";
     processingError.style.display = 'none';
-
-    let url = langsUrl + "&productEditionId=" + window.location.hash.substring(1) + "&sessionId=" + sharedSessionGUID;
+    let productId = window.location.hash.substring(1);
+    let url = `${msApiUrl}getskuinformationbyproductedition${parms}${sharedSessionGUID}&ProductEditionId=${productId}`;
     let xhr = new XMLHttpRequest();
     xhr.onload = getDownload;
     xhr.open("GET", url);
     xhr.send();
-
 }
 
 function prepareDownload(id) {
@@ -218,7 +293,7 @@ function updateResults() {
 
 function setSearch(query) {
     let search = document.getElementById('search-products');
-    search.value = query;
+    search.value = search.value == query ? null : query;
     updateResults();
 }
 
